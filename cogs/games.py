@@ -616,9 +616,7 @@ class SaveRollView(ui.View):
     async def roll_to_save(self, interaction: discord.Interaction, button: ui.Button):
         """Callback for the roll to save button."""
         roll = secrets.randbelow(20) + 1
-        save_message = f"
-{self.user.display_name} rolled a {roll} to save...
-"
+        save_message = f"""{self.user.display_name} rolled a {roll} to save..."""
         if roll >= 10:
             save_message += secrets.choice(RFI_SAVE_SUCCESS)
         else:
