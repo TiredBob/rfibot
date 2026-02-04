@@ -6,6 +6,7 @@ def setup_logger(log_dir=None):
     # Create logger
     logger = logging.getLogger('discord_bot')
     logger.setLevel(logging.INFO)
+    logger.propagate = False # Prevent messages from being passed to the root logger
 
     # Determine log file path
     log_file_path = 'discord_bot.log'
