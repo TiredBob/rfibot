@@ -424,19 +424,14 @@ class RPSGameView(ui.View):
         Returns:
             str: The formatted result message.
         """
-        result = (
-            f"**Rock, Paper, Scissors Results:**
-"
-            f"{self.challenger.mention} chose **{challenger_choice}**
-"
-            f"{self.challenged.mention} chose **{challenged_choice}**
+        result = f"""**Rock, Paper, Scissors Results:**
+{self.challenger.mention} chose **{challenger_choice}**
+{self.challenged.mention} chose **{challenged_choice}**"""
 
-"
-        )
         if winner:
-            result += f"🎉 **{winner.mention} wins!** 🎉"
+            result += f"\n🎉 **{winner.mention} wins!** 🎉"
         else:
-            result += "🤝 **It's a tie!** 🤝"
+            result += "\n🤝 **It's a tie!** 🤝"
         return result
     @ui.button(label="Rock", style=discord.ButtonStyle.primary, emoji="🪨")
     async def rock(self, interaction: discord.Interaction, button: ui.Button):
