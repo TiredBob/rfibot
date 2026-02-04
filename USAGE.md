@@ -1,6 +1,6 @@
 # How to Use rfibot After Joining Your Server
 
-This guide explains how to get rfibot up and running in your Discord server once it has been invited.
+This guide explains how to get rfibot up and running in your Discord server once it has been invited. For instructions on how to start, stop, or manage the bot process itself, please refer to the main `README.md` file.
 
 ## 1. Granting Permissions (if necessary)
 

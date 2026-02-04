@@ -51,6 +51,43 @@ To get rfibot running on your server:
     python bot.py
     ```
 
+## Management Script (`manage.sh`)
+
+The `manage.sh` script is a powerful tool for controlling your bot's lifecycle. It leverages `tmux` to run the bot in a detached session, allowing it to run continuously in the background, even after you close your terminal.
+
+**Usage:**
+
+```bash
+bash manage.sh <command>
+```
+
+**Commands:**
+
+*   `start`: Starts the bot in a new `tmux` session named `rfibot`. It will automatically activate the virtual environment, run `bot.py`, and print the bot's Discord invite link to your terminal once generated.
+*   `stop`: Stops the running `rfibot` `tmux` session, gracefully shutting down the bot.
+*   `restart`: Stops the bot (if running) and then starts it again.
+*   `status`: Checks if the `rfibot` `tmux` session is active and reports the bot's running status.
+*   `attach`: Attaches your terminal to the `rfibot` `tmux` session, allowing you to see the bot's live output. Press `Ctrl+b d` to detach without stopping the bot.
+*   `clean`: Deletes log files in the bot's main directory (`bot.log`, `discord_bot.log`, etc.) that are older than 72 hours (3 days). This is also performed automatically when the bot starts via `manage.sh`.
+
+**Example:**
+
+```bash
+# Start the bot
+bash manage.sh start
+
+# Check its status
+bash manage.sh status
+
+# Attach to see live output
+tmux attach -t rfibot
+
+# Stop the bot
+bash manage.sh stop
+```
+
+**Important:** For the `manage.sh` script to work, the `tmux` server must be running. If `tmux ls` shows "no server running", simply type `tmux` in your terminal, then detach (`Ctrl+b d`) to start the server.
+
 ## Logging and Error Handling
 
 The bot uses a custom error handler that logs warnings and errors to a dedicated Discord channel named `bot-status`. If this channel does not exist, the bot will attempt to create it in the first guild it's connected to. Uncaught exceptions and critical log messages will be sent to this channel.
