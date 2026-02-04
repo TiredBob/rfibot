@@ -2,6 +2,8 @@
 
 Welcome to rfibot! This guide will help you get started with using the bot in your Discord server. Whether you're new to Discord bots or just need a refresher, we'll walk you through everything you need to know.
 
+**For bot administrators:** If you're setting up your own instance of rfibot, check out our [README.md](README.md) for detailed installation and configuration instructions.
+
 ## 1. Understanding Bot Permissions
 
 When you invite rfibot to your server, it needs certain permissions to work properly. Don't worry - we'll explain what these permissions mean and how to manage them.
