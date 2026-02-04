@@ -42,7 +42,7 @@ invite_link_stability_explanation.md
 local_fixes_report*.md
 log_rotation_report.md
 log_spam_fix_report.md
-manage_script_*_report.md
+manage_script_*_report*.md
 pause_pushing_report.md
 pushed_fixes_report*.md
 readme_update_report.md
