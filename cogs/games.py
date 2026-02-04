@@ -652,8 +652,8 @@ class Games(commands.Cog):
                 await ctx.send('Please limit the number of sides to 100 or less')
                 return
             results = [secrets.randbelow(limit) + 1 for _ in range(rolls)]
-            await ctx.send(f'Results: {results}
-Total: {sum(results)}')
+            await ctx.send(f"""Results: {results}
+Total: {sum(results)}""")
         except ValueError:
             await ctx.send('Format must be NdM (e.g., 2d6)')
     
@@ -755,9 +755,9 @@ Total: {sum(results)}')
             game_view = TicTacToeGameView(challenger, challenged_user)
             starting_player = game_view.challenger if game_view.current_player == game_view.X else game_view.challenged
             message = await ctx.send(
-                f"**Tic-Tac-Toe!**
+                f"""**Tic-Tac-Toe!**
 {challenger.mention} (X) vs {challenged_user.mention} (O)
-It is now {starting_player.mention}'s turn.",
+It is now {starting_player.mention}'s turn.""",
                 view=game_view
             )
             game_view.message = message
