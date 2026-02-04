@@ -8,6 +8,7 @@ from discord.ext import commands
 import logging
 import traceback
 import sys
+import time
 import asyncio
 from typing import Optional
 
@@ -18,6 +19,8 @@ class DiscordErrorHandler:
         self.bot = bot
         self.status_channel_name = "bot-status"
         self.status_channel = None
+        self.last_channel_find_attempt = 0
+        self.channel_find_cooldown = 60  # Cooldown in seconds
         self.setup_logging()
     
     def setup_logging(self):
@@ -103,6 +106,11 @@ class DiscordErrorHandler:
         # Check if we're in an async context
         try:
             if not self.status_channel:
+                now = time.time()
+                if now - self.last_channel_find_attempt < self.channel_find_cooldown:
+                    return  # Cooldown active, do not attempt to find channel
+                self.last_channel_find_attempt = now
+
                 # Try to find the channel again
                 self.status_channel = await self.find_status_channel()
                 
