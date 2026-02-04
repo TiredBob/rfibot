@@ -304,9 +304,9 @@ class TicTacToeChallengeView(ui.View):
         game_view = TicTacToeGameView(self.challenger, self.challenged)
         starting_player = game_view.challenger if game_view.current_player == game_view.X else game_view.challenged
         await interaction.response.edit_message(
-            content=f"**Tic-Tac-Toe!**
+            content=f"""**Tic-Tac-Toe!**
 {self.challenger.mention} (X) vs {self.challenged.mention} (O)
-It is now {starting_player.mention}'s turn.",
+It is now {starting_player.mention}'s turn.""",
             view=game_view
         )
         game_view.message = await interaction.original_response()

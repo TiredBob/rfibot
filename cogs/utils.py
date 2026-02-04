@@ -15,7 +15,7 @@ class Utils(commands.Cog):
         self.bot = bot
         logger.info("Utils cog initialized")
 
-    @commands.command(name='ping', hidden=True, help='Checks the bot's latency.')
+    @commands.command(name='ping', hidden=True, help="Checks the bot's latency.")
     async def ping(self, ctx: commands.Context):
         """Checks the bot's latency."""
         logger.info(f'Ping command used by {ctx.author}')
