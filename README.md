@@ -2,7 +2,7 @@
 
 ## Overview
 
-rfibot is a versatile Discord bot built with Python and `discord.py`. It offers a variety of commands for entertainment, utility, and even integrates with the Gemini API for generative AI features. The bot is designed to be robust, featuring custom error handling and dedicated logging to a 'bot-status' channel.
+rfibot is a versatile Discord bot built with Python and `discord.py`. It offers a variety of commands for entertainment and utility. The bot is designed to be robust, featuring custom error handling and dedicated logging to a 'bot-status' channel.
 
 ## Features
 
@@ -19,7 +19,6 @@ rfibot is a versatile Discord bot built with Python and `discord.py`. It offers 
 *   **Utility**:
     *   `!invite`: Get the bot's invite link to add it to your own server.
     *   `!ping`: Check the bot's latency.
-*   **AI Integration**: Answers questions and generates content using the Google Gemini API (requires configuration).
 
 ## Setup
 
@@ -38,17 +37,15 @@ To get rfibot running on your server:
     ```
 3.  **Install Dependencies**:
     ```bash
-    uv pip install -r requirements.txt # Or uv pip install . if pyproject.toml is used directly
+    uv pip install .
     ```
-    *Note: If you don't have a `requirements.txt`, you might need to generate it from `uv.lock` or install based on `pyproject.toml`.*
+    *Note: This command installs dependencies listed in `pyproject.toml`.*
 4.  **Configuration (`.env` file)**:
     Create a `.env` file in the root directory of the project. This file will hold your sensitive API keys and tokens.
     ```
     DISCORD_TOKEN=YOUR_DISCORD_BOT_TOKEN
-    # GOOGLE_API_KEY=YOUR_GOOGLE_GEMINI_API_KEY # Uncomment and set if using Gemini API
     ```
     *   **DISCORD_TOKEN**: Obtain this from the Discord Developer Portal for your bot.
-    *   **GOOGLE_API_KEY**: Obtain this from Google AI Studio or Google Cloud for Gemini API access.
 5.  **Run the Bot**:
     ```bash
     python bot.py
@@ -63,4 +60,3 @@ The bot uses a custom error handler that logs warnings and errors to a dedicated
 *   **`PyNaCl is not installed, voice will NOT be supported`**: This warning indicates a missing dependency for Discord voice features. If your bot does not require voice functionality, you can safely ignore this. Otherwise, install it: `uv pip install pynacl`.
 *   **Commands not processing**: Ensure all cogs (`.py` files in the `cogs/` directory) are loading without `SyntaxError` or other issues. Check `discord_bot.log` for `Failed to load cog` messages.
 *   **Duplicate log messages**: This can occur if logging is misconfigured. Ensure the `discord_bot` logger does not propagate messages to the root logger if both have console handlers.
-*   **Gemini API errors**: Issues like "API key not valid", "Resource exhausted", or "model not found" indicate problems with your `GOOGLE_API_KEY` or usage limits.
