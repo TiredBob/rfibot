@@ -1,5 +1,7 @@
 import logging
 import sys
+import os
+import datetime
 from logging.handlers import RotatingFileHandler
 
 def setup_logger(log_dir=None):
@@ -11,11 +13,11 @@ def setup_logger(log_dir=None):
     # Determine log file path
     log_file_path = 'discord_bot.log'
     if log_dir:
-        import os
         log_file_path = os.path.join(log_dir, log_file_path)
 
     # Create handlers
     console_handler = logging.StreamHandler(sys.stdout)
+    # Using RotatingFileHandler for size-based rotation
     file_handler = RotatingFileHandler(log_file_path, maxBytes=10000000, backupCount=5, encoding='utf-8')
 
     # Create formatters
@@ -24,16 +26,46 @@ def setup_logger(log_dir=None):
     file_handler.setFormatter(formatter)
 
     # Add handlers to logger
-    logger.addHandler(console_handler)
-    logger.addHandler(file_handler)
+    # Check if handlers already exist to prevent duplicate logging
+    if not logger.handlers:
+        logger.addHandler(console_handler)
+        logger.addHandler(file_handler)
 
     # Configure root logger to ensure all modules can log to console and file
-    root_logger = logging.getLogger()
+    root_logger = logging.getLogger() # Gets the root logger
     root_logger.setLevel(logging.INFO)
     
     # Add a basic console handler to root logger for modules that don't have specific loggers
-    root_console_handler = logging.StreamHandler(sys.stdout)
-    root_console_handler.setFormatter(formatter)
-    root_logger.addHandler(root_console_handler)
+    # Check if handlers already exist to prevent duplicate logging
+    if not root_logger.handlers:
+        root_console_handler = logging.StreamHandler(sys.stdout)
+        root_console_handler.setFormatter(formatter)
+        root_logger.addHandler(root_console_handler)
 
     return logger
+
+def clean_old_logs(log_dir, days_old=3):
+    """
+    Cleans up log files in the specified directory that are older than days_old.
+    """
+    if not log_dir or not os.path.isdir(log_dir):
+        logging.getLogger('discord_bot').warning(f"Log directory '{log_dir}' not found or invalid for cleanup.")
+        return
+
+    now = datetime.datetime.now()
+    cutoff_time = now - datetime.timedelta(days=days_old)
+    
+    logger = logging.getLogger('discord_bot')
+    logger.info(f"Starting log cleanup in '{log_dir}'. Deleting files older than {days_old} days.")
+
+    for filename in os.listdir(log_dir):
+        filepath = os.path.join(log_dir, filename)
+        if os.path.isfile(filepath) and filename.endswith('.log'):
+            try:
+                mod_time = datetime.datetime.fromtimestamp(os.path.getmtime(filepath))
+                if mod_time < cutoff_time:
+                    os.remove(filepath)
+                    logger.info(f"Deleted old log file: {filepath}")
+            except Exception as e:
+                logger.error(f"Error deleting log file {filepath}: {e}")
+    logger.info("Log cleanup finished.")

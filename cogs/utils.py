@@ -1,7 +1,10 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import logging
 import requests
+import datetime
+import os
+from utils.logger import clean_old_logs
 
 logger = logging.getLogger('discord_bot')
 
@@ -14,6 +17,24 @@ class Utils(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         logger.info("Utils cog initialized")
+        self.log_cleanup_task.start() # Start the scheduled task
+
+    def cog_unload(self):
+        # Ensure the task is stopped when the cog is unloaded
+        self.log_cleanup_task.cancel()
+
+    @tasks.loop(time=datetime.time(hour=10, minute=0, tzinfo=datetime.timezone.utc)) # 5:00 AM GMT-5 is 10:00 AM UTC
+    async def log_cleanup_task(self):
+        """Task to clean up old log files daily."""
+        log_dir = os.getcwd() # Log files are in the bot's current working directory
+        await self.bot.loop.run_in_executor(
+            None, clean_old_logs, log_dir, 3 # Run clean_old_logs in a separate thread pool executor
+        )
+
+    @log_cleanup_task.before_loop
+    async def before_log_cleanup_task(self):
+        await self.bot.wait_until_ready()
+        logger.info("Log cleanup task is ready.")
 
     @commands.command(name='ping', hidden=True, help="Checks the bot's latency.")
     async def ping(self, ctx: commands.Context):
