@@ -94,9 +94,10 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    # logger.info(f'Message received in bot.py: {message.content} from {message.author} in channel {message.channel.name}')
+    # Check if the message starts with the command prefix before logging
+    if message.content.startswith(COMMAND_PREFIX):
+        logger.info(f"Command received: {message.content} from {message.author} in channel {message.channel.name}")
 
-    # Make sure to process commands first
     await bot.process_commands(message)
 
 @bot.event
@@ -120,7 +121,8 @@ async def on_command_error(ctx: Context, error: commands.CommandError):
     error = getattr(error, 'original', error)
 
     if isinstance(error, commands.CommandNotFound):
-        # This is handled by the help command's on_help_command_error
+        logger.info(f"Invalid command received: {ctx.message.content} from {ctx.author} in channel {ctx.channel.name}")
+        # This is handled by the help command's on_help_command_error (or implicitly ignored if no help handler)
         return
     elif isinstance(error, commands.MissingRequiredArgument):
         await ctx.send(f"You're missing a required argument: `{error.param.name}`. Use `!help {ctx.command.name}` for more info.")
