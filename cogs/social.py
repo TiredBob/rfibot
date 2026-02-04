@@ -52,9 +52,16 @@ class Social(commands.Cog):
             logger.info(f'{name} command used by {ctx.author} on {user.name}')
             await ctx.send(f'{ctx.author.mention} {secrets.choice(responses).format(user=user.mention)}')
         
-        # Bind the command to the class and add it to the bot
-        social_command.cog = self
-        self.bot.add_command(social_command)
+    @commands.command(name="invite", help="Generates the bot's invite link.")
+    async def invite(self, ctx: commands.Context):
+        """Generates the bot's invite link."""
+        client_id = self.bot.user.id
+        # Permissions can be customized if needed. For a basic bot, 'scope=bot' is sufficient.
+        # Example with specific permissions (e.g., Read Messages, Send Messages, Embed Links):
+        # permissions = 277025779776 # This is an example, actual value depends on desired permissions
+        invite_url = f"https://discord.com/oauth2/authorize?client_id={client_id}&scope=bot"
+        await ctx.send(f"You can invite me to your server using this link: {invite_url}")
+
 
 # =====================================================================================================================
 # 3. SETUP FUNCTION
