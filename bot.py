@@ -94,7 +94,7 @@ async def on_message(message):
     if message.author == bot.user:
         return
 
-    logger.info(f'Message received in bot.py: {message.content} from {message.author} in channel {message.channel.name}')
+    # logger.info(f'Message received in bot.py: {message.content} from {message.author} in channel {message.channel.name}')
 
     # Make sure to process commands first
     await bot.process_commands(message)
