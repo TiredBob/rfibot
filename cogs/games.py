@@ -563,7 +563,7 @@ class RFIChallengeView(ui.View):
         elif challenger_roll < challenged_roll:
             await channel.send(f'{self.challenged.mention} wins the RFI challenge! 🎉')
         else:
-            await channel.send('It's a tie! 🤝')
+            await channel.send("It's a tie! 🤝")
         self.stop()
     @ui.button(label="Deny", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: ui.Button):
