@@ -23,7 +23,7 @@ class Utils(commands.Cog):
         await ctx.send(f'Pong! Latency: {latency}ms 🌐')
 
     @commands.command(name='qotd', help='Gets the quote of the day.')
-    async def qotd(self, ctx: commands.comdands.Context):
+    async def qotd(self, ctx: commands.Context):
         """Gets the quote of the day."""
         logger.info(f'QOTD command used by {ctx.author}')
         try:

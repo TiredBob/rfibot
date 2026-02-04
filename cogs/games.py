@@ -485,9 +485,9 @@ class RPSChallengeView(ui.View):
         logger.info(f'{self.challenged.name} accepted RPS challenge from {self.challenger.name}')
         game_view = RPSGameView(self.challenger, self.challenged)
         await interaction.response.edit_message(
-            content=f"**Rock, Paper, Scissors!**
+            content=f"""**Rock, Paper, Scissors!**
 {self.challenger.mention} vs {self.challenged.mention}
-Make your choice!",
+Make your choice!""",
             view=game_view
         )
         game_view.message = await interaction.original_response()
