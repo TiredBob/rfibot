@@ -5,51 +5,48 @@
 # --- Configuration ---
 VENV_PATH="pybot/bin/activate"
 BOT_SCRIPT="bot.py"
-PID_FILE="bot.pid"
-LOG_FILE="bot.log"  # Assuming bot.log is the main log file
+LOG_FILE="bot.log"
+TMUX_SESSION_NAME="rfibot"
 
 # --- Functions ---
 
 start_bot() {
-    if [ -f "$PID_FILE" ]; then
-        echo "Bot is already running (PID: $(cat $PID_FILE)). Use 'restart' if you want to restart it."
+    if tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null; then
+        echo "Tmux session '$TMUX_SESSION_NAME' already exists. Please stop it manually or use 'restart'."
         return 1
     fi
 
-    echo "Starting bot..."
+    echo "Starting bot in tmux session '$TMUX_SESSION_NAME'..."
 
-    # Activate virtual environment and run bot in the background
-    source "$VENV_PATH"
-    python "$BOT_SCRIPT" &
+    # Ensure log file exists before tailing
+    touch "$LOG_FILE"
+
+    # Start the bot inside a new detached tmux session.
+    # Redirect stderr to stdout so both go to the tmux pane.
+    tmux new-session -d -s "$TMUX_SESSION_NAME" \
+        "source $VENV_PATH && python $BOT_SCRIPT 2>&1"
+
+    # Now, wait for the invite link from the log file
+    echo "Waiting for invite link (this may take a moment)..."
+    INVITE_LINK=$(tail -n 0 -f "$LOG_FILE" | grep --line-buffered -m 1 "Invite link:")
     
-    # Save the PID
-    echo $! > "$PID_FILE"
+    # Print the invite link
+    echo "$INVITE_LINK"
     
-    echo "Bot started with PID: $(cat $PID_FILE)"
-    
-    # Wait for the invite link and print it
-    echo "Waiting for invite link..."
-    
-    # Tail the log file until we find the invite link, then exit
-    tail -n 0 -f "$LOG_FILE" | grep --line-buffered -m 1 "Invite link:"
+    echo "Bot is running in tmux session '$TMUX_SESSION_NAME'."
+    echo "To attach to the session and see full output: tmux attach -t $TMUX_SESSION_NAME"
+    echo "Bot logs are also written to '$LOG_FILE'."
 }
 
 stop_bot() {
-    if [ ! -f "$PID_FILE" ]; then
-        echo "Bot is not running."
+    if tmux has-session -t "$TMUX_SESSION_NAME" 2>/dev/null; then
+        echo "Stopping tmux session '$TMUX_SESSION_NAME'..."
+        tmux kill-session -t "$TMUX_SESSION_NAME"
+        echo "Bot stopped."
+    else
+        echo "Bot is not running (tmux session '$TMUX_SESSION_NAME' not found)."
         return 1
     fi
-    
-    PID=$(cat "$PID_FILE")
-    echo "Stopping bot (PID: $PID)..."
-    
-    # Send SIGTERM for graceful shutdown
-    kill "$PID"
-    
-    # Remove the PID file
-    rm "$PID_FILE"
-    
-    echo "Bot stopped."
 }
 
 # --- Main Script ---
