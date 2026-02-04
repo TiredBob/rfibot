@@ -40,10 +40,17 @@ class CustomHelpCommand(commands.HelpCommand):
 
             # Get cog name, or "No Category" if it's a command without a cog
             cog_name = cog.qualified_name if cog else "No Category"
-            command_usages = [self.get_command_signature(c) for c in filtered_commands]
+            
+            command_lines = []
+            for command in filtered_commands:
+                usage = self.get_command_signature(command)
+                if command.aliases:
+                    command_lines.append(f"`{usage}` (Aliases: {', '.join(command.aliases)})")
+                else:
+                    command_lines.append(f"`{usage}`")
             
             # Add a field for each cog
-            embed.add_field(name=cog_name, value="\n".join(f"`{usage}`" for usage in command_usages), inline=False)
+            embed.add_field(name=cog_name, value="\n".join(command_lines), inline=False)
 
         embed.set_footer(text=f"Use {self.context.clean_prefix}help [command] for more info on a command.")
         await self.get_destination().send(embed=embed)
