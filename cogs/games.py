@@ -687,11 +687,8 @@ Total: {sum(results)}""")
         else:  # roll == 20
             response_list = RFI_CRITICAL_SUCCESS
         # Construct the message
-        message = (
-            f'{ctx.author.display_name} rolled a {roll}
-'
-            f'{ctx.author.display_name} {secrets.choice(response_list)}'
-        )
+        message = f"""{ctx.author.display_name} rolled a {roll}
+{ctx.author.display_name} {secrets.choice(response_list)}"""
         # Handle the special case for critical failure, otherwise send normally
         if roll == 1:
             save_view = SaveRollView(ctx.author)
