@@ -1,1 +1,0 @@
-The 'invite' command has been successfully added to the `Social` cog (`cogs/social.py`), allowing the bot to display its invite link. The changes have been committed and pushed to the remote `main` branch.

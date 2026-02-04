@@ -1,1 +1,0 @@
-Understood. I will stop pushing changes to the remote repository. I will continue to work on fixing bugs locally, and I will only push changes once you instruct me to do so.
