@@ -1,0 +1,1 @@
+The reference to `.envdiscord` has been successfully removed from `config.py`, and the change has been committed and pushed to the remote `main` branch.

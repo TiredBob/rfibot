@@ -6,7 +6,7 @@ export PATH="/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:$PATH"
 BOT_NAME="rfibot"                  # tmux session name for this bot
 BOT_DIR="/home/bob/dev/rfibot"     # Directory of the bot project
 BOT_SCRIPT="bot.py"
-VENV_DIR="$BOT_DIR/pybot"          # Path to the virtual environment
+VENV_DIR="$BOT_DIR/.venv"          # Path to the virtual environment
 LOG_FILE="bot.log"                 # Main log file for the bot
 
 cd "$BOT_DIR" || exit 1
