@@ -1,7 +1,7 @@
 # Environments
 /pybot/
 .env
-.envdiscord
+.envold
 .venv
 env/
 venv/
