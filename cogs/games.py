@@ -669,8 +669,8 @@ Total: {sum(results)}""")
             response = "You are holding a coconut."
         else:
             response = secrets.choice(EIGHT_BALL_RESPONSES)
-        await ctx.send(f'{ctx.author.display_name} asked: "{question}"
-🎱 Answer: {response}')
+        await ctx.send(f"""{ctx.author.display_name} asked: "{question}"
+🎱 Answer: {response}""")
     
     @commands.command(name='rfi', help='Rolls a d20 to determine success or failure.')
     async def rfi(self, ctx: commands.Context):
