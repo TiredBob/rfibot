@@ -6,6 +6,7 @@ from discord.ext.commands import Context
 import asyncio
 import logging
 import traceback
+import signal
 from config import TOKEN, COMMAND_PREFIX
 from utils.logger import setup_logger
 from utils.discord_error_handler import DiscordErrorHandler
@@ -13,11 +14,9 @@ from utils.discord_error_handler import DiscordErrorHandler
 
 # Get the directory of the current script
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# Change the current working directory to the script's directory
-os.chdir(BASE_DIR)
 
-# Setup logging
-logger = setup_logger(log_dir=BASE_DIR)
+# Setup logging with configured log directory
+logger = setup_logger()
 
 # Initialize bot with all intents
 intents = discord.Intents.default()
@@ -42,14 +41,6 @@ async def load_cogs():
             except Exception as e:
                 logger.error(f"Failed to load cog {filename}: {e}")
                 traceback.print_exc()
-
-    # Load the credits system cog
-    try:
-        await bot.load_extension('credits_system.cog')
-        logger.info("Loaded cog: credits_system.cog")
-    except Exception as e:
-        logger.error(f"Failed to load cog credits_system.cog: {e}")
-        traceback.print_exc()
 
 @bot.event
 async def on_ready():
@@ -145,15 +136,53 @@ async def on_command_error(ctx: Context, error: commands.CommandError):
         traceback.print_exception(type(error), error, error.__traceback__)
         await ctx.send("An error occurred while executing the command.")
 
+# Global shutdown flag
+shutdown_event = asyncio.Event()
+
+def signal_handler(sig, frame):
+    """Handle SIGTERM and SIGINT for graceful shutdown."""
+    print(f"Received signal {sig}, initiating graceful shutdown...")
+    shutdown_event.set()
+
+async def check_shutdown():
+    """Periodically check for shutdown signal."""
+    while not shutdown_event.is_set():
+        await asyncio.sleep(1)
+    
+    if not bot.is_closed():
+        print("Shutdown signal received, closing bot...")
+        await bot.close()
+        logger.info("Bot connection closed gracefully.")
+
 async def main():
+    # Set up signal handlers
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGTERM, signal_handler)
+    loop.add_signal_handler(signal.SIGINT, signal_handler)
+    
     try:
-        async with bot:
-            await load_cogs()
-            await bot.start(TOKEN)
+        await load_cogs()
+        
+        # Start shutdown checker in background
+        shutdown_task = asyncio.create_task(check_shutdown())
+        
+        # Start the bot
+        await bot.start(TOKEN)
+        
     except KeyboardInterrupt:
         logger.info("KeyboardInterrupt received, shutting down.")
+    except Exception as e:
+        logger.error(f"Unexpected error in main: {e}")
+        traceback.print_exc()
     finally:
-        if bot.is_closed() is False:
+        # Cancel shutdown task if still running
+        shutdown_task.cancel()
+        try:
+            await shutdown_task
+        except asyncio.CancelledError:
+            pass
+        
+        if not bot.is_closed():
             await bot.close()
             logger.info("Bot connection closed.")
 
@@ -162,3 +191,6 @@ if __name__ == "__main__":
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
         logger.info("Bot shutdown complete.")
+    except Exception as e:
+        logger.error(f"Fatal error during bot execution: {e}")
+        traceback.print_exc()

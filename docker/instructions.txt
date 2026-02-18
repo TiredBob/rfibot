@@ -1,0 +1,244 @@
+# rfibot Docker Testing Instructions
+
+## 🧪 Testing the Fixed Graceful Shutdown and Logger Improvements
+
+This file contains testing instructions for the recent fixes to the rfibot Docker containerization.
+
+## 🎯 What Was Fixed
+
+1. **Graceful Shutdown** - Fixed broken signal handling in `bot.py`
+2. **Logger Initialization** - Fixed self-reference error in `utils/logger.py`
+3. **Logging Consistency** - Fixed directory path inconsistency in `utils/logger.py`
+
+## 🚀 Basic Functionality Test
+
+### 1. Start the bot normally
+```bash
+cd /home/bob/dev/rfibot/docker/
+docker-compose up -d
+```
+
+### 2. Check it's running
+```bash
+docker-compose ps
+# Should show rfibot service as "Up"
+```
+
+### 3. Test basic commands
+- In Discord, try: `!ping`, `!help`, `!qotd`
+- Verify bot responds normally
+
+## 🛑 Graceful Shutdown Tests
+
+### Test 1: Docker Stop Command
+```bash
+# Send SIGTERM to container
+docker stop rfibot
+
+# Check logs for graceful shutdown
+docker-compose logs | tail -20
+```
+**Expected**: Should see "Shutdown signal received" and "Bot connection closed gracefully"
+
+### Test 2: Docker Compose Down
+```bash
+docker-compose down
+```
+**Expected**: Should shutdown cleanly without errors
+
+### Test 3: Manual SIGTERM
+```bash
+# Start in foreground
+docker-compose up
+
+# In another terminal, find container ID
+docker ps
+
+# Send SIGTERM directly
+docker kill --signal=SIGTERM <container_id>
+```
+**Expected**: Should shutdown gracefully within 1-2 seconds
+
+### Test 4: Keyboard Interrupt (Ctrl+C)
+```bash
+# Start in foreground
+docker-compose up
+
+# Press Ctrl+C
+```
+**Expected**: Should catch KeyboardInterrupt and shutdown cleanly
+
+## 📁 Logger Directory Tests
+
+### Test 1: Default Log Directory
+```bash
+# Ensure logs directory exists
+mkdir -p logs
+chmod 777 logs
+
+# Start with default config
+docker-compose up -d
+
+# Check logs are created
+ls -la logs/
+```
+**Expected**: `discord_bot.log` should be created in `./logs/`
+
+### Test 2: Custom Log Directory
+```bash
+# Create custom log directory
+mkdir -p /tmp/custom_rfibot_logs
+chmod 777 /tmp/custom_rfibot_logs
+
+# Start with custom log directory
+docker run -d \
+  --name rfibot_test \
+  -e DISCORD_TOKEN=your_token_here \
+  -e LOG_DIR=/app/custom_logs \
+  -v /tmp/custom_rfibot_logs:/app/custom_logs \
+  rfibot
+
+# Check logs in custom directory
+ls -la /tmp/custom_rfibot_logs/
+```
+**Expected**: Logs should appear in custom directory
+
+### Test 3: Invalid Log Directory (Fallback Test)
+```bash
+# Start with non-writable log directory
+docker run -d \
+  --name rfibot_fallback \
+  -e DISCORD_TOKEN=your_token_here \
+  -e LOG_DIR=/root/protected_logs \
+  rfibot
+
+# Check container logs
+docker logs rfibot_fallback
+```
+**Expected**: Should see "Failed to create log directory" message but bot should still start
+
+## 🔄 Restart and Recovery Tests
+
+### Test 1: Multiple Restarts
+```bash
+# Start, stop, start cycle
+for i in {1..5}; do
+  echo "Cycle $i"
+  docker-compose up -d
+  sleep 5
+  docker-compose down
+  sleep 2
+done
+```
+**Expected**: Should handle multiple start/stop cycles without issues
+
+### Test 2: Crash Recovery
+```bash
+# Start the bot
+docker-compose up -d
+
+# Kill it abruptly (simulate crash)
+docker kill rfibot
+
+# Restart
+docker-compose up -d
+```
+**Expected**: Should restart cleanly after abrupt termination
+
+## 🐛 Error Condition Tests
+
+### Test 1: Missing Environment Variables
+```bash
+# Try to start without required variables
+docker run -d rfibot
+```
+**Expected**: Should fail with clear error about missing DISCORD_TOKEN
+
+### Test 2: Invalid Token
+```bash
+# Start with invalid token
+docker run -d \
+  -e DISCORD_TOKEN="invalid_token_123" \
+  rfibot
+
+# Check logs
+docker logs <container_id>
+```
+**Expected**: Should fail to connect to Discord with appropriate error
+
+## 📊 Performance Tests
+
+### Test 1: Memory Usage
+```bash
+# Start the bot
+docker-compose up -d
+
+# Monitor memory usage
+watch -n 1 "docker stats rfibot --no-stream"
+```
+**Expected**: Memory usage should be stable (no leaks)
+
+### Test 2: Log Rotation
+```bash
+# Generate lots of log activity
+# (Use bot commands repeatedly)
+
+# Check log file size
+ls -lh logs/discord_bot.log
+
+# Should rotate at 10MB (configured in logger.py)
+```
+**Expected**: Log file should rotate when reaching ~10MB
+
+## 📋 Test Checklist
+
+- [ ] Basic startup and command functionality
+- [ ] Graceful shutdown with `docker stop`
+- [ ] Graceful shutdown with `docker-compose down`
+- [ ] SIGTERM handling
+- [ ] Keyboard interrupt handling
+- [ ] Default log directory creation
+- [ ] Custom log directory usage
+- [ ] Fallback logging when directory creation fails
+- [ ] Multiple restart cycles
+- [ ] Crash recovery
+- [ ] Error handling for missing/invalid config
+- [ ] Memory stability
+- [ ] Log rotation
+
+## 🔧 Debugging Tips
+
+### If shutdown doesn't work:
+```bash
+# Check signal handling
+docker exec -it rfibot bash
+ps aux | grep python
+kill -SIGTERM <python_pid>
+```
+
+### If logs don't appear:
+```bash
+# Check container filesystem
+docker exec -it rfibot ls -la /app/logs/
+
+# Check environment variables
+docker exec -it rfibot env | grep LOG
+```
+
+### If bot won't start:
+```bash
+# Check real-time logs
+docker-compose logs -f
+
+# Check Discord token
+docker exec -it rfibot env | grep DISCORD
+```
+
+## ✅ Success Criteria
+
+The fixes are working correctly if:
+1. `docker stop rfibot` takes < 2 seconds to complete
+2. No "AttributeError" or "logger not initialized" errors appear
+3. Log directory paths in messages match actual directories used
+4. Bot can recover from abrupt terminations
+5. All basic bot commands still work normally

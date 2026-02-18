@@ -1,0 +1,61 @@
+# Python cache and virtual environments
+__pycache__/
+.venv/
+venv/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+
+# Environment files
+.env
+.envold
+
+# Log files
+bot.log
+*.log
+discord_bot.log
+
+# Git files
+.git/
+.gitignore
+
+# Documentation and build files
+Dockerfile
+docker-compose.yml
+README.md
+LICENSE
+USAGE.md
+manage.sh
+sync.sh
+manage_script_report.md
+systemd_service_instructions.md
+tmux_server_startup_instructions.md
+systemctl_file_locations.md
+build/
+
+# Backup and temporary files
+*.bak
+*.old
+*.md
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Test and coverage files
+.test/
+.coverage
+*.cover
+
+# Python package files
+*.egg-info/
+dist/
+build/
+
+# Database files
+*.db
+*.sqlite

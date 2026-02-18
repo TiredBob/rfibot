@@ -4,10 +4,7 @@ from discord.ext import commands
 import secrets
 import logging
 import asyncio
-from typing import Optional, Union
-from credits_system.cog import CreditsCog # Import CreditsCog
-import datetime
-import pytz # Import pytz for timezone awareness
+from typing import Union
 
 logger = logging.getLogger('discord_bot')
 
@@ -93,46 +90,7 @@ EIGHT_BALL_RESPONSES = [
     "Reply hazy, try again.", "Ask again later.", "Better not tell you now.", "Cannot predict now.", "Concentrate and ask again.",
     "Don't count on it.", "My reply is no.", "My sources say no.", "Outlook not so good.", "Very doubtful.",
 ]
-# Slot Machine Constants
-SLOT_EMOJIS = ["🍒", "🍋", "🍊", "🍇", "🍉", "⭐"] # Star is the wildcard
-SLOT_ANIMATION_FRAMES = ["|", "/", "-", "\\"] # Simple animation frames
 
-# Payouts: (emoji1, emoji2, emoji3): multiplier
-SLOT_PAYOUTS = {
-    # Perfect matches
-    ("🍒", "🍒", "🍒"): 10.0,
-    ("🍋", "🍋", "🍋"): 10.0,
-    ("🍊", "🍊", "🍊"): 10.0,
-    ("🍇", "🍇", "🍇"): 15.0,
-    ("🍉", "🍉", "🍉"): 20.0,
-    ("⭐", "⭐", "⭐"): 50.0, # Three wildcards is a big win
-
-    # Wildcard matches (wildcard replaces one emoji)
-    ("🍒", "🍒", "⭐"): 5.0,
-    ("🍒", "⭐", "🍒"): 5.0,
-    ("⭐", "🍒", "🍒"): 5.0,
-    ("🍋", "🍋", "⭐"): 5.0,
-    ("🍋", "⭐", "🍋"): 5.0,
-    ("⭐", "🍋", "🍋"): 5.0,
-    ("🍊", "🍊", "⭐"): 5.0,
-    ("🍊", "⭐", "🍊"): 5.0,
-    ("⭐", "🍊", "🍊"): 5.0,
-    ("🍇", "🍇", "⭐"): 7.5,
-    ("🍇", "⭐", "🍇"): 7.5,
-    ("⭐", "🍇", "🍇"): 7.5,
-    ("🍉", "🍉", "⭐"): 10.0,
-    ("🍉", "⭐", "🍉"): 10.0,
-    ("⭐", "🍉", "🍉"): 10.0,
-
-    # Mixed matches (two wildcards) - for simplicity, treat as three wildcards for now,
-    # or implement a lower payout if needed. For this task, it's implied by 3 wildcards having highest.
-    # The current logic will handle (X, *, *) and (*, X, *) as a match if X = Y, and if X = * they'll be 3 wildcards.
-    # So we only need to define cases where a wildcard replaces ONE specific emoji type.
-    # Note: A match like (🍒, ⭐, 🍋) would only pay if the 'matching 3 emojis' rule implies 'at least two specific emojis + wildcard'
-    # For now, we assume (A, B, C) where A or B or C can be wildcard.
-    # If two are wildcards, e.g. (🍒, ⭐, ⭐), this is implicitly covered by checking for "any two symbols + a wildcard".
-    # Since we're checking for "3 of a kind" or "2 of a kind + wildcard", these are sufficient.
-}
 # =====================================================================================================================
 # 2. UI VIEWS & HELPER CLASSES
 # =====================================================================================================================
@@ -555,30 +513,22 @@ Make your choice!""",
 # --- Roll For Initiative (RFI) Classes ---
 class RFIChallengeView(ui.View):
     """A view for the Roll for Initiative challenge, with accept and deny buttons."""
-    def __init__(self, challenger: discord.Member, challenged: discord.Member, bet_amount: int = 0, credits_cog: Optional[CreditsCog] = None):
+    def __init__(self, challenger: discord.Member, challenged: discord.Member):
         """
         Initializes the RFIChallengeView.
-
         Args:
             challenger (discord.Member): The user who initiated the challenge.
             challenged (discord.Member): The user who was challenged.
-            bet_amount (int): The amount of credits being bet.
-            credits_cog (Optional[CreditsCog]): The credits cog instance for credit operations.
         """
         super().__init__(timeout=180.0)
         self.challenger = challenger
         self.challenged = challenged
         self.message = None
-        self.bet_amount = bet_amount
-        self.credits_cog = credits_cog
-
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         """
         Checks if the user is allowed to interact with the view.
-
         Args:
             interaction (discord.Interaction): The interaction object.
-
         Returns:
             bool: True if the user is allowed to interact, False otherwise.
         """
@@ -587,76 +537,34 @@ class RFIChallengeView(ui.View):
             await interaction.response.send_message("This is not your challenge to accept or deny.", ephemeral=True)
             return False
         return True
-
     async def on_timeout(self):
         """Handles the view timing out."""
         if self.message:
-            bet_message = ""
-            if self.bet_amount > 0:
-                bet_message = f" (Bet of {self.bet_amount} credits was not placed.)"
-            await self.message.edit(content=f"Challenge from {self.challenger.mention} to {self.challenged.mention} timed out.{bet_message}", view=None)
-
+            await self.message.edit(content=f"Challenge from {self.challenger.mention} to {self.challenged.mention} timed out.", view=None)
     @ui.button(label="Accept", style=discord.ButtonStyle.green)
     async def accept(self, interaction: discord.Interaction, button: ui.Button):
         """Callback for the accept button."""
         if interaction.user.id != self.challenged.id:
             await interaction.response.send_message("Only the challenged user can accept this challenge.", ephemeral=True)
             return
-        
         logger.info(f'{self.challenged.name} accepted RFI challenge from {self.challenger.name}')
-        
-        # Initial response to update the message, then send results
         await interaction.response.edit_message(
-            content=f'{self.challenged.mention} accepted the challenge! Rolling for initiative...', 
+            content=f'{self.challenged.mention} accepted the challenge! Rolling for initiative...',
             view=None
         )
-
         # RFI logic
         challenger_roll = secrets.randbelow(20) + 1
         challenged_roll = secrets.randbelow(20) + 1
-
         channel = interaction.channel
-        result_message = ""
-        result_message += f'{self.challenger.mention} rolled a {challenger_roll}\n'
-        result_message += f'{self.challenged.mention} rolled a {challenged_roll}\n'
-
-        winner = None
-        loser = None
+        await channel.send(f'{self.challenger.mention} rolled a {challenger_roll}')
+        await channel.send(f'{self.challenged.mention} rolled a {challenged_roll}')
         if challenger_roll > challenged_roll:
-            winner = self.challenger
-            loser = self.challenged
-            result_message += f'{self.challenger.mention} wins the RFI challenge! 🎉'
+            await channel.send(f'{self.challenger.mention} wins the RFI challenge! 🎉')
         elif challenger_roll < challenged_roll:
-            winner = self.challenged
-            loser = self.challenger
-            result_message += f'{self.challenged.mention} wins the RFI challenge! 🎉'
+            await channel.send(f'{self.challenged.mention} wins the RFI challenge! 🎉')
         else:
-            result_message += "It's a tie! 🤝"
-        
-        # Handle betting
-        if self.bet_amount > 0 and self.credits_cog:
-            if winner and loser: # If there was a clear winner/loser
-                winner_id = str(winner.id)
-                loser_id = str(loser.id)
-                guild_id = str(channel.guild.id) # Guild context from the channel interaction
-
-                # Perform the transfer
-                subtract_success = self.credits_cog.subtract_credits(loser_id, guild_id, self.bet_amount, "rfi_bet_loss")
-                add_success = self.credits_cog.add_credits(winner_id, guild_id, self.bet_amount, "rfi_bet_win")
-
-                if subtract_success and add_success:
-                    result_message += f"💰 {winner.mention} won {self.bet_amount} credits from {loser.mention}!"
-                else:
-                    # This case should ideally not happen if initial credit check passed,
-                    # but good to have a fallback.
-                    logger.error(f"Failed to transfer RFI bet credits. Winner: {winner_id}, Loser: {loser_id}, Amount: {self.bet_amount}")
-                    result_message += f"\n❌ An error occurred during credit transfer for the bet."
-            else: # It was a tie, return credits
-                result_message += f"🤝 It's a tie! Bet of {self.bet_amount} credits returned to both players."
-
-        await channel.send(result_message)
+            await channel.send("It's a tie! 🤝")
         self.stop()
-
     @ui.button(label="Deny", style=discord.ButtonStyle.red)
     async def deny(self, interaction: discord.Interaction, button: ui.Button):
         """Callback for the deny button."""
@@ -670,7 +578,7 @@ class RFIChallengeView(ui.View):
         elif interaction.user.id == self.challenged.id:
             logger.info(f'{self.challenged.name} denied RFI challenge from {self.challenger.name}')
             await interaction.response.edit_message(
-                content=f"{self.challenged.mention} denied the challenge from {self.challenged.mention}.",
+                content=f"{self.challenged.mention} denied the challenge from {self.challenger.mention}.",
                 view=None
             )
             self.stop()
@@ -720,114 +628,6 @@ class SaveRollView(ui.View):
         await interaction.response.edit_message(content=new_content, view=self)
         self.stop()
 
-# --- Coinflip Challenge Classes ---
-class CoinflipGameView(ui.View):
-    def __init__(self, challenger: discord.Member, challenged: discord.Member, bet_amount: int, credits_cog: Optional[CreditsCog] = None):
-        super().__init__(timeout=180.0)
-        self.challenger = challenger
-        self.challenged = challenged
-        self.bet_amount = min(bet_amount, 50) # Cap bet at 50
-        self.credits_cog = credits_cog
-        self.message = None
-        self.chosen_side = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.challenged:
-            await interaction.response.send_message("This is not your coinflip to choose for!", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.message:
-            for item in self.children:
-                item.disabled = True
-            await self.message.edit(content=f"Coinflip challenge from {self.challenger.mention} to {self.challenged.mention} timed out. No choice was made.", view=self)
-
-    @ui.button(label="Heads", style=discord.ButtonStyle.primary, emoji="🪙")
-    async def choose_heads(self, interaction: discord.Interaction, button: ui.Button):
-        self.chosen_side = "Heads"
-        await self._process_flip(interaction)
-
-    @ui.button(label="Tails", style=discord.ButtonStyle.primary, emoji="🪙")
-    async def choose_tails(self, interaction: discord.Interaction, button: ui.Button):
-        self.chosen_side = "Tails"
-        await self._process_flip(interaction)
-
-    async def _process_flip(self, interaction: discord.Interaction):
-        self.clear_items() # Remove buttons after selection
-        
-        await interaction.response.edit_message(content=f"{self.challenged.mention} chose **{self.chosen_side}**! Flipping the coin...", view=self)
-        
-        await asyncio.sleep(2) # Simulate coin flip time
-
-        coin_result = secrets.choice(["Heads", "Tails"])
-        result_message = f"The coin landed on **{coin_result}**!\n"
-        result_message += f"{self.challenged.mention} chose **{self.chosen_side}**.\n" # Added line
-
-        if self.chosen_side == coin_result:
-            result_message += f"🎉 {self.challenged.mention} guessed correctly!"
-            if self.credits_cog and self.bet_amount > 0:
-                user_id = str(self.challenged.id)
-                guild_id = str(interaction.guild_id)
-                credits_success = self.credits_cog.add_credits(user_id, guild_id, self.bet_amount, "coinflip_win")
-                if credits_success:
-                    result_message += f"💰 {self.challenged.mention} won {self.bet_amount} credits!"
-                else:
-                    logger.error(f"Failed to award {self.bet_amount} credits to coinflip winner {self.challenged.name}.")
-                    result_message += f"❌ An error occurred while awarding credits to {self.challenged.mention}."
-        else:
-            result_message += f"😔 {self.challenged.mention} guessed incorrectly."
-        
-        if self.message:
-            await self.message.edit(content=result_message, view=self)
-        self.stop()
-
-
-class CoinflipChallengeView(ui.View):
-    def __init__(self, challenger: discord.Member, challenged: discord.Member, bet_amount: int, credits_cog: Optional[CreditsCog] = None):
-        super().__init__(timeout=180.0)
-        self.challenger = challenger
-        self.challenged = challenged
-        self.bet_amount = bet_amount
-        self.credits_cog = credits_cog
-        self.message = None
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if interaction.user != self.challenged:
-            await interaction.response.send_message("This is not your challenge to accept or deny.", ephemeral=True)
-            return False
-        return True
-
-    async def on_timeout(self):
-        if self.message:
-            await self.message.edit(content=f"Coinflip challenge from {self.challenger.mention} to {self.challenged.mention} timed out.", view=None)
-
-    @ui.button(label="Accept", style=discord.ButtonStyle.green)
-    async def accept(self, interaction: discord.Interaction, button: ui.Button):
-        logger.info(f'{self.challenged.name} accepted Coinflip challenge from {self.challenger.name}')
-        game_view = CoinflipGameView(self.challenger, self.challenged, self.bet_amount, self.credits_cog)
-        
-        initial_message = f"**Coinflip Challenge!**{self.challenger.mention} challenged {self.challenged.mention}."
-        if self.bet_amount > 0:
-            initial_message += f"The winner will receive {self.bet_amount} credits."
-        initial_message += f"{self.challenged.mention}, choose your side!"
-
-        await interaction.response.edit_message(
-            content=initial_message,
-            view=game_view
-        )
-        game_view.message = await interaction.original_response()
-        self.stop()
-
-    @ui.button(label="Deny", style=discord.ButtonStyle.red)
-    async def deny(self, interaction: discord.Interaction, button: ui.Button):
-        logger.info(f'{self.challenged.name} denied Coinflip challenge from {self.challenger.name}')
-        await interaction.response.edit_message(
-            content=f"{self.challenged.mention} denied the coinflip challenge from {self.challenger.mention}.",
-            view=None
-        )
-        self.stop()
-
 # =====================================================================================================================
 # 3. MAIN COG CLASS
 # =====================================================================================================================
@@ -836,18 +636,7 @@ class Games(commands.Cog):
     """A cog for game-related commands."""
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.credits_cog: Optional[CreditsCog] = None # Initialize credits_cog
-        self.last_rfi_reward_time = {} # {user_id: datetime.datetime}
         logger.info("Games cog initialized")
-    
-    @commands.Cog.listener()
-    async def on_ready(self):
-        """Called when the bot is fully ready and all cogs are loaded."""
-        self.credits_cog = self.bot.get_cog("Credits")
-        if self.credits_cog:
-            logger.info("CreditsCog successfully retrieved in Games cog.")
-        else:
-            logger.warning("CreditsCog not found. Credit rewards for RFI will be unavailable.")
     
     @commands.command(name='roll', help="Rolls dice and returns the results and their sum. Defaults to '2d6'. Example: !roll 3d8")
     async def roll(self, ctx: commands.Context, dice: str = '2d6'):
@@ -888,62 +677,18 @@ Total: {sum(results)}""")
         """Rolls a d20 to determine success or failure."""
         logger.info(f'RFI command used by {ctx.author}')
         roll = secrets.randbelow(20) + 1
-
-        credits_awarded = 0
-        reason = "rfi_roll" # Default reason
-
         # Determine the outcome based on the roll
         if roll == 1:
             response_list = RFI_CRITICAL_FAILURE
-            reason = "rfi_critical_failure" # Specific reason for critical failure
-        elif roll < 10: # Rolls 2-9
+        elif roll < 10:
             response_list = RFI_FAILURE
-            reason = "rfi_failure" # Specific reason for failure
-        elif roll < 20: # Rolls 10-19
+        elif roll < 20:
             response_list = RFI_SUCCESS
-            credits_awarded = 10 # Award 10 credits for success
-            reason = "rfi_success" # Specific reason for success
-        else:  # roll == 20 (Critical Success)
+        else:  # roll == 20
             response_list = RFI_CRITICAL_SUCCESS
-            credits_awarded = 250 # Award 250 credits for critical success
-            reason = "rfi_critical_success" # Specific reason for critical success
-
         # Construct the message
-        message = (
-            f'{ctx.author.display_name} rolled a {roll}'
-            f'{ctx.author.display_name} {secrets.choice(response_list)}'
-        )
-
-        # Award credits if applicable
-        if self.credits_cog and credits_awarded > 0:
-            user_id = str(ctx.author.id)
-            server_id = str(ctx.guild.id)
-            
-            # Define the timezone for GMT-7 (America/Denver)
-            try:
-                denver_tz = pytz.timezone('America/Denver') 
-            except pytz.exceptions.UnknownTimeZoneError:
-                logger.error("America/Denver timezone not found. Using UTC as fallback for RFI reward reset.")
-                denver_tz = pytz.utc
-            
-            now_local_tz = datetime.datetime.now(denver_tz)
-            today_local_tz = now_local_tz.date() # Get just the date part
-
-            last_reward_date = self.last_rfi_reward_time.get(user_id)
-            
-            # Check if credits have already been awarded today (local timezone)
-            if last_reward_date and last_reward_date == today_local_tz:
-                # Credits already awarded today, do not add credit message
-                pass 
-            else:
-                # Credits not yet awarded today, proceed to award
-                credits_success = self.credits_cog.add_credits(user_id, server_id, credits_awarded, reason)
-                if credits_success:
-                    message += f"💰 You earned {credits_awarded} credits!"
-                    self.last_rfi_reward_time[user_id] = today_local_tz # Store only the date
-                else:
-                    message += "❌ Failed to award credits."
-
+        message = f"""{ctx.author.display_name} rolled a {roll}
+{ctx.author.display_name} {secrets.choice(response_list)}"""
         # Handle the special case for critical failure, otherwise send normally
         if roll == 1:
             save_view = SaveRollView(ctx.author)
@@ -952,55 +697,20 @@ Total: {sum(results)}""")
         else:
             await ctx.send(message)
     
-    @commands.command(name='challenge', aliases=['ch'], help='Challenges another user to a d20 roll-off. Example: !challenge @Radar or !challenge @Radar 50')
-    async def rfi_challenge(self, ctx: commands.Context, user_str: str, bet: Optional[int] = None):
+    @commands.command(name='challenge', aliases=['ch'], help='Challenges another user to a d20 roll-off. Example: !challenge @Radar')
+    async def rfi_challenge(self, ctx: commands.Context, user: discord.Member):
         """Challenges another user to a d20 roll-off."""
-        try:
-            user = await commands.MemberConverter().convert(ctx, user_str.strip())
-        except commands.MemberNotFound:
-            await ctx.send(f'Member "{user_str}" not found. Please make sure you @mention them correctly or provide a valid ID/username.', ephemeral=True)
-            return
-        
         challenger = ctx.author
         if user == challenger:
             await ctx.send('You cannot challenge yourself!', ephemeral=True)
             return
-
         if user.bot:
             await ctx.send("You cannot challenge a bot!", ephemeral=True)
             return
-
-        bet_amount = 0
-        if bet is not None:
-            if bet <= 0:
-                await ctx.send("Bet amount must be a positive number.", ephemeral=True)
-                return
-            bet_amount = bet
-
-            if not self.credits_cog:
-                await ctx.send("Credit system is not available, cannot place bets.", ephemeral=True)
-                return
-
-            challenger_credits = self.credits_cog.get_credits(str(challenger.id), str(ctx.guild.id))
-            if challenger_credits is None or challenger_credits < bet_amount:
-                await ctx.send(f"{challenger.mention}, you do not have enough credits to bet {bet_amount}. Your current balance: {challenger_credits if challenger_credits is not None else 0}.", ephemeral=True)
-                return
-
-            challenged_credits = self.credits_cog.get_credits(str(user.id), str(ctx.guild.id))
-            if challenged_credits is None or challenged_credits < bet_amount:
-                await ctx.send(f"{user.mention} does not have enough credits to accept a bet of {bet_amount}.", ephemeral=True)
-                return
-
-        logger.info(f'RFI challenge command used by {challenger.name} to challenge {user.name} with bet: {bet_amount}')
-
-        challenge_view = RFIChallengeView(challenger, user, bet_amount, self.credits_cog)
-        challenge_message_content = f"{user.mention}, you have been challenged by {challenger.mention} to a Roll for Initiative!"
-        if bet_amount > 0:
-            challenge_message_content += f" The stakes are {bet_amount} credits!"
-        challenge_message_content += " Ready your die."
-
+        logger.info(f'RFI challenge command used by {challenger.name} to challenge {user.name}')
+        challenge_view = RFIChallengeView(challenger, user)
         challenge_message = await ctx.send(
-            challenge_message_content,
+            f"{user.mention}, you have been challenged by {challenger.mention} to a Roll for Initiative! Ready your die.",
             view=challenge_view
         )
         challenge_view.message = challenge_message
@@ -1064,173 +774,6 @@ It is now {starting_player.mention}'s turn.""",
         """Flips a coin."""
         logger.info(f'Coinflip command used by {ctx.author}')
         await ctx.send(f'The coin landed on **{secrets.choice(["Heads", "Tails"])}**!')
-
-    @commands.command(name='coinflipchallenge', aliases=['cfc'], help='Challenges another user to a coinflip. Winner gets credits (max 50). Example: !cfc @User 25')
-    async def coinflipchallenge(self, ctx: commands.Context, challenged: discord.Member, coins: Optional[int] = 0):
-        """Challenges another user to a coinflip."""
-        challenger = ctx.author
-
-        if challenged == challenger:
-            await ctx.send("You cannot challenge yourself!", ephemeral=True)
-            return
-
-        if challenged.bot:
-            await ctx.send("You cannot challenge a bot!", ephemeral=True)
-            return
-
-        bet_amount = min(coins, 50) # Cap the bet at 50
-
-        if bet_amount <= 0:
-            await ctx.send("You must bet at least 1 credit for a challenge, up to a maximum of 50 credits.", ephemeral=True)
-            return
-
-        if not self.credits_cog:
-            await ctx.send("Credit system is not available, cannot run coinflip challenges with credits.", ephemeral=True)
-            return
-        
-        # We don't need to check challenged's credits here because they only win, not lose.
-
-        logger.info(f'Coinflip challenge initiated by {challenger.name} against {challenged.name} for {bet_amount} credits.')
-        
-        challenge_view = CoinflipChallengeView(challenger, challenged, bet_amount, self.credits_cog)
-        
-        challenge_message_content = f"{challenged.mention}, {challenger.mention} has challenged you to a coinflip!"
-        if bet_amount > 0:
-            challenge_message_content += f" If you guess correctly, you win {bet_amount} credits!"
-        challenge_message_content += " Do you accept?"
-
-        challenge_message = await ctx.send(
-            challenge_message_content,
-            view=challenge_view
-        )
-        challenge_view.message = challenge_message
-    @commands.command(name='slots', help='Play a slot machine! Bet between 5 and 100 credits (default: 5). Example: !slots 50')
-    async def slots(self, ctx: commands.Context, bet: int = 5):
-        """Plays a slot machine game with a given bet."""
-        player = ctx.author
-
-        def _get_reels_display(reels: list[str]) -> str:
-            """Formats the reels for display."""
-            return f"| {' | '.join(reels)} |"
-
-        def _check_win(reels: list[str]) -> float:
-            """
-            Checks for winning combinations and returns the multiplier.
-            The `reels` list contains 3 emojis.
-            """
-            # Check for exact matches (including three wildcards)
-            reels_tuple = tuple(reels)
-            if reels_tuple in SLOT_PAYOUTS:
-                return SLOT_PAYOUTS[reels_tuple]
-
-            # Handle cases with wildcards that form a match
-            wildcard_count = reels.count("⭐")
-            non_wildcards = [e for e in reels if e != "⭐"]
-
-            # Case: Two wildcards (e.g., A, ⭐, ⭐)
-            if wildcard_count == 2:
-                if len(non_wildcards) == 1: # One non-wildcard emoji, two wildcards
-                    base_emoji = non_wildcards[0]
-                    # Effectively forms three of the base_emoji, but with wildcards, so pays less
-                    # Check for (base_emoji, base_emoji, wildcard) payouts, as it should be equivalent
-                    # to having two of the base emoji and one wildcard.
-                    potential_payout_keys = [
-                        (base_emoji, base_emoji, "⭐"),
-                        (base_emoji, "⭐", base_emoji),
-                        ("⭐", base_emoji, base_emoji)
-                    ]
-                    for key in SLOT_PAYOUTS: # Iterate through all keys in SLOT_PAYOUTS
-                        # If a key matches one of our potential keys, and it's a wildcard payout
-                        # for the base_emoji, then return that multiplier.
-                        if key in potential_payout_keys:
-                            return SLOT_PAYOUTS[key]
-            
-            # Case: One wildcard (e.g., A, A, ⭐ or A, B, ⭐ where A != B)
-            # The A, A, ⭐ permutations are already handled by direct `SLOT_PAYOUTS` lookup
-            # due to all permutations being listed. If A, B, ⭐ where A != B, it's not a win.
-
-            return 0.0 # No win
-
-        if not self.credits_cog:
-            await ctx.send("Credit system is not available, cannot play slots.", ephemeral=True)
-            return
-
-        if not (5 <= bet <= 100):
-            await ctx.send("You must bet between 5 and 100 credits.", ephemeral=True)
-            return
-        
-        user_id = str(player.id)
-        guild_id = str(ctx.guild.id)
-        current_credits = self.credits_cog.get_credits(user_id, guild_id)
-
-        if current_credits is None or current_credits < bet:
-            await ctx.send(f"{player.mention}, you do not have enough credits to bet {bet}. Your current balance: {current_credits if current_credits is not None else 0}.", ephemeral=True)
-            return
-
-        logger.info(f'Slots game initiated by {player.name} with a bet of {bet} credits.')
-
-        # Deduct bet
-        if not self.credits_cog.subtract_credits(user_id, guild_id, bet, "slot_machine_bet"):
-            await ctx.send(f"{player.mention}, you do not have enough credits to place a bet of {bet}.")
-            return
-        
-        # Initial message before animation
-        initial_message_content = f"{player.mention} bets {bet} credits on the slots!"
-        reels = ["?", "?", "?"] # Initial state
-        message = await ctx.send(initial_message_content + "\n" + _get_reels_display(reels))
-
-        animation_duration = 3  # seconds for the entire animation
-        frames_per_second = 2
-        
-        animation_duration_per_reel = animation_duration / 3 # Each reel animates for 1 second
-        total_frames_per_reel = int(animation_duration_per_reel * frames_per_second)
-
-        final_reels = [secrets.choice(SLOT_EMOJIS) for _ in range(3)]
-        
-        # Animate reel 1 (all three spin)
-        for i in range(total_frames_per_reel):
-            temp_reels = [secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[0] = final_reels[0]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause before next reel
-
-        # Animate reel 2 (reels 2 and 3 spin)
-        for i in range(total_frames_per_reel):
-            temp_reels = [reels[0], secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[1] = final_reels[1]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause before next reel
-
-        # Animate reel 3 (only reel 3 spins)
-        for i in range(total_frames_per_reel):
-            temp_reels = [reels[0], reels[1], secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[2] = final_reels[2]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause after last reel
-
-        # Final spin result and payout calculation
-        multiplier = _check_win(final_reels)
-        
-        result_message = initial_message_content + "\n"
-        result_message += f"**{_get_reels_display(final_reels)}**\n\n"
-
-        if multiplier > 0:
-            winnings = int(bet * multiplier)
-            self.credits_cog.add_credits(user_id, guild_id, winnings, "slot_machine_win")
-            result_message += f"🎉 **{player.mention} wins {winnings} credits!** (Multiplier: {multiplier:.1f}x)"
-        else:
-            result_message += f"😔 {player.mention} didn't win this time. Better luck next spin!"
-
-        await message.edit(content=result_message)
 
 # =====================================================================================================================
 # 4. SETUP FUNCTION

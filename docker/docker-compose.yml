@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  rfibot:
+    build: .
+    container_name: rfibot
+    restart: unless-stopped
+    environment:
+      - DISCORD_TOKEN=${DISCORD_TOKEN}
+      - TZ=UTC
+    volumes:
+      - ./logs:/app/logs
+    # No exposed ports needed for Discord bots
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import discord; print('Healthy')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
