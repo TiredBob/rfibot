@@ -16,8 +16,8 @@ class CreditsConfig:
     backup_interval_hours: int = 24
 
     # Initial credits settings
-    initial_credits: int = 250
-    daily_reward: int = 10
+    initial_credits: int = 500
+    daily_reward: int = 100
     max_transfer_amount: int = 1000
     min_transfer_amount: int = 1
 

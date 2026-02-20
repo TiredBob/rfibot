@@ -838,6 +838,9 @@ class Games(commands.Cog):
         self.bot = bot
         self.credits_cog: Optional[CreditsCog] = None # Initialize credits_cog
         self.last_rfi_reward_time = {} # {user_id: datetime.datetime}
+        self.slots_lock = asyncio.Lock()
+        self.active_slots_users: set[str] = set()  # user_id strings with active slots
+        self.active_slots_count = 0  # total active slots games across all users
         logger.info("Games cog initialized")
     
     @commands.Cog.listener()
@@ -901,17 +904,17 @@ Total: {sum(results)}""")
             reason = "rfi_failure" # Specific reason for failure
         elif roll < 20: # Rolls 10-19
             response_list = RFI_SUCCESS
-            credits_awarded = 10 # Award 10 credits for success
+            credits_awarded = 100 # Award 10 credits for success
             reason = "rfi_success" # Specific reason for success
         else:  # roll == 20 (Critical Success)
             response_list = RFI_CRITICAL_SUCCESS
-            credits_awarded = 250 # Award 250 credits for critical success
+            credits_awarded = 1000 # Award 250 credits for critical success
             reason = "rfi_critical_success" # Specific reason for critical success
 
         # Construct the message
         message = (
-            f'{ctx.author.display_name} rolled a {roll}'
-            f'{ctx.author.display_name} {secrets.choice(response_list)}'
+            f'{ctx.author.display_name} rolled a {roll}\n'
+            f'{ctx.author.display_name} {secrets.choice(response_list)}\n'
         )
 
         # Award credits if applicable
@@ -1104,7 +1107,7 @@ It is now {starting_player.mention}'s turn.""",
             view=challenge_view
         )
         challenge_view.message = challenge_message
-    @commands.command(name='slots', help='Play a slot machine! Bet between 5 and 100 credits (default: 5). Example: !slots 50')
+    @commands.command(name='slots', help='Play a slot machine! Bet between 5 and 1000 credits (default: 5). Example: !slots 50')
     async def slots(self, ctx: commands.Context, bet: int = 5):
         """Plays a slot machine game with a given bet."""
         player = ctx.author
@@ -1155,8 +1158,8 @@ It is now {starting_player.mention}'s turn.""",
             await ctx.send("Credit system is not available, cannot play slots.", ephemeral=True)
             return
 
-        if not (5 <= bet <= 100):
-            await ctx.send("You must bet between 5 and 100 credits.", ephemeral=True)
+        if not (5 <= bet <= 1000):
+            await ctx.send("You must bet between 5 and 1000 credits.", ephemeral=True)
             return
         
         user_id = str(player.id)
@@ -1167,10 +1170,27 @@ It is now {starting_player.mention}'s turn.""",
             await ctx.send(f"{player.mention}, you do not have enough credits to bet {bet}. Your current balance: {current_credits if current_credits is not None else 0}.", ephemeral=True)
             return
 
-        logger.info(f'Slots game initiated by {player.name} with a bet of {bet} credits.')
+        # Concurrency checks: allow one slots game per user and up to 2 total concurrently
+        user_id_str = user_id
+        async with self.slots_lock:
+            if user_id_str in self.active_slots_users:
+                await ctx.send(f"{player.mention}, you already have a slots game running.", ephemeral=True)
+                return
+            if self.active_slots_count >= 2:
+                await ctx.send("There are already 2 slots games running. Please wait.", ephemeral=True)
+                return
+            # Reserve a slot for this user
+            self.active_slots_users.add(user_id_str)
+            self.active_slots_count += 1
 
-        # Deduct bet
+        logger.info(f'Slots game reserved for {player.name} with a bet of {bet} credits.')
+
+        # Deduct bet (if this fails, release the reservation)
         if not self.credits_cog.subtract_credits(user_id, guild_id, bet, "slot_machine_bet"):
+            async with self.slots_lock:
+                self.active_slots_users.discard(user_id_str)
+                if self.active_slots_count > 0:
+                    self.active_slots_count -= 1
             await ctx.send(f"{player.mention}, you do not have enough credits to place a bet of {bet}.")
             return
         
@@ -1179,58 +1199,69 @@ It is now {starting_player.mention}'s turn.""",
         reels = ["?", "?", "?"] # Initial state
         message = await ctx.send(initial_message_content + "\n" + _get_reels_display(reels))
 
-        animation_duration = 3  # seconds for the entire animation
+        animation_duration = 4  # seconds for the entire animation
         frames_per_second = 2
-        
-        animation_duration_per_reel = animation_duration / 3 # Each reel animates for 1 second
+
+        animation_duration_per_reel = animation_duration / 3  # Each reel animates for ~1 second
         total_frames_per_reel = int(animation_duration_per_reel * frames_per_second)
 
+        # Ensure at least one frame per reel to avoid zero-frame animations
+        if total_frames_per_reel < 1:
+            total_frames_per_reel = 1
+
+        total_frames = total_frames_per_reel * 3
         final_reels = [secrets.choice(SLOT_EMOJIS) for _ in range(3)]
-        
-        # Animate reel 1 (all three spin)
-        for i in range(total_frames_per_reel):
-            temp_reels = [secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[0] = final_reels[0]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause before next reel
 
-        # Animate reel 2 (reels 2 and 3 spin)
-        for i in range(total_frames_per_reel):
-            temp_reels = [reels[0], secrets.choice(SLOT_EMOJIS), secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[1] = final_reels[1]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause before next reel
+        # Single loop: update all three reels and the spinner once per frame
+        started = True
+        try:
+            for i in range(total_frames):
+                # Determine current symbol for each reel: spinning until its stop frame
+                if i < total_frames_per_reel:
+                    r1 = secrets.choice(SLOT_EMOJIS)
+                else:
+                    r1 = final_reels[0]
 
-        # Animate reel 3 (only reel 3 spins)
-        for i in range(total_frames_per_reel):
-            temp_reels = [reels[0], reels[1], secrets.choice(SLOT_EMOJIS)]
-            animation_frame_content = initial_message_content + f"\n{_get_reels_display(temp_reels)} {SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]}"
-            await message.edit(content=animation_frame_content)
-            await asyncio.sleep(1 / frames_per_second)
-        reels[2] = final_reels[2]
-        await message.edit(content=initial_message_content + f"\n{_get_reels_display(reels)}")
-        await asyncio.sleep(0.2) # Short pause after last reel
+                if i < total_frames_per_reel * 2:
+                    r2 = secrets.choice(SLOT_EMOJIS)
+                else:
+                    r2 = final_reels[1]
 
-        # Final spin result and payout calculation
-        multiplier = _check_win(final_reels)
-        
-        result_message = initial_message_content + "\n"
-        result_message += f"**{_get_reels_display(final_reels)}**\n\n"
+                if i < total_frames_per_reel * 3:
+                    r3 = secrets.choice(SLOT_EMOJIS)
+                else:
+                    r3 = final_reels[2]
 
-        if multiplier > 0:
-            winnings = int(bet * multiplier)
-            self.credits_cog.add_credits(user_id, guild_id, winnings, "slot_machine_win")
-            result_message += f"🎉 **{player.mention} wins {winnings} credits!** (Multiplier: {multiplier:.1f}x)"
-        else:
-            result_message += f"😔 {player.mention} didn't win this time. Better luck next spin!"
+                animation_char = SLOT_ANIMATION_FRAMES[i % len(SLOT_ANIMATION_FRAMES)]
+                current_reels = [r1, r2, r3]
+                animation_frame_content = initial_message_content + f"\n{_get_reels_display(current_reels)} {animation_char}"
+                await message.edit(content=animation_frame_content)
+                await asyncio.sleep(1 / frames_per_second)
 
-        await message.edit(content=result_message)
+            # Final display with settled reels
+            await message.edit(content=initial_message_content + f"\n{_get_reels_display(final_reels)}")
+            await asyncio.sleep(0.2)  # Short pause after last reel
+
+            # Final spin result and payout calculation
+            multiplier = _check_win(final_reels)
+
+            result_message = initial_message_content + "\n"
+            result_message += f"**{_get_reels_display(final_reels)}**\n\n"
+
+            if multiplier > 0:
+                winnings = int(bet * multiplier)
+                self.credits_cog.add_credits(user_id, guild_id, winnings, "slot_machine_win")
+                result_message += f"🎉 **{player.mention} wins {winnings} credits!** (Multiplier: {multiplier:.1f}x)"
+            else:
+                result_message += f"😔 {player.mention} didn't win this time. Better luck next spin!"
+
+            await message.edit(content=result_message)
+        finally:
+            # Release reservation for this user's slots game
+            async with self.slots_lock:
+                self.active_slots_users.discard(user_id_str)
+                if self.active_slots_count > 0:
+                    self.active_slots_count -= 1
 
 # =====================================================================================================================
 # 4. SETUP FUNCTION
